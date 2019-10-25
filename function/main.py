@@ -13,12 +13,14 @@ def avro_to_rawls(request):
     if (request.is_json):
         request_json = request.json
     else:
-        return handle_exception("error", start_time, "Request made at " + start_time + " did not contain application/json payload. Request data: " + request.data)
+        return handle_exception("error", "Request made at " + start_time + " did not contain application/json payload. Request data: " + request.data)
 
     try:
         job_id = request_json['jobId']
     except:
-        return handle_exception("error", start_time, "Could not find a jobId in the following request made at " + start_time + ": " + str(request.json))
+        return handle_exception("error", "Could not find a jobId in the following request made at " + start_time + ": " + str(request.json))
+
+    write_running_to_bucket(job_id, start_time)
 
     try:
         url = request_json['url']
@@ -29,7 +31,7 @@ def avro_to_rawls(request):
         workspace_name = workspace['name']
         workspace_namespace = workspace['namespace']
     except KeyError as ke:
-        return handle_exception(job_id, start_time, "Key Error: " + str(ke) + " in request " + str(request.json))
+        return handle_exception(job_id, "Key Error: " + str(ke) + " in request " + str(request.json))
 
     defaults = {'b64-decode-enums': True, 'prefix-object-ids': True}
     request_options = request_json.get('options', {})
@@ -42,7 +44,7 @@ def avro_to_rawls(request):
 
     try:
         reader = fastavro.reader(avro)
-        translation = translate(reader, options)
+        translation = Translator(options).translate(reader)
         metadata = {
             "namespace": workspace_namespace,
             "name": workspace_name,
@@ -51,21 +53,21 @@ def avro_to_rawls(request):
             "jobId": job_id,
             "startTime": start_time,
         }
-        metadata_json_str = str(json.dumps(metadata))
+        metadata_json_str = json.dumps(metadata)
         metadat_file_name = job_id + "/metadata.json"
-        upsert_json_str = str(json.dumps(translation))
+        upsert_json_str = json.dumps(translation)
         upsert_file_name = job_id + "/upsert.json"
         write_to_bucket(metadat_file_name, metadata_json_str)
         write_to_bucket(upsert_file_name, upsert_json_str)
     except Exception as e:
-        return handle_exception(job_id, start_time, "The following exception occurred: " + str(e))
-    except:
-        return handle_exception(job_id, start_time, "Something went wrong with the following request: " + str(request.json))
+        return handle_exception(job_id, "The following exception occurred: " + str(e))
 
 
-def handle_exception(subdirectory_name, start_time, message):
-    error_file_name = subdirectory_name + "/error-" + start_time + ".txt"
-    write_to_bucket(error_file_name, message)
+def handle_exception(subdirectory_name, message):
+    error_time = str(datetime.now())
+    error_file_name = subdirectory_name + "/error.json"
+    contents = json.dumps({ "error_time": error_time, "error_message": message})
+    write_to_bucket(error_file_name, contents)
     return message
 
 
@@ -80,18 +82,17 @@ def write_metadata_to_bucket(job_id, content_string):
     write_to_bucket(file_name, content_string)
 
 
+def write_running_to_bucket(job_id, start_time):
+    file_name = job_id + "/running.json"
+    contents = json.dumps({"start_time": start_time})
+    write_to_bucket(file_name, contents)
+
+
 def write_to_bucket(file_name, content):
     storage_client = storage.Client()
     bucket = storage_client.get_bucket("avro-translated-json")
     blob = bucket.blob(file_name)
     blob.upload_from_string(content)
-
-
-def translate(reader, options=None):
-    if options is None:
-        options = {}
-    t = Translator(options)
-    return t.translate(reader)
 
 
 class Translator:
@@ -119,6 +120,8 @@ class Translator:
                 value = _b64_decode(value).decode("utf-8")
             if self.options['prefix-object-ids'] and key == 'object_id':
                 value = 'drs://' + value
+            if key == 'name':
+                key = entity_type + '_name'
             return _make_add_update_op(key, value)
 
         attributes = [make_op(key, value)

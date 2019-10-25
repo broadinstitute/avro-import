@@ -1,0 +1,3 @@
+fastavro
+sanic
+google-cloud-storage
