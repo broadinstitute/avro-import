@@ -29,7 +29,8 @@ gcloud functions deploy $CLOUD_FUNCTION_NAME \
 --source=$FUNCTION_DIRECTORY \
 --timeout=540s \
 --trigger-http \
---project=$PROJECT
+--project=$PROJECT \
+--set-env-vars=ENV=$ENV
 
 # Remove all users
 gcloud beta functions remove-iam-policy-binding $CLOUD_FUNCTION_NAME --member "allUsers" --role "roles/cloudfunctions.invoker" --project $PROJECT

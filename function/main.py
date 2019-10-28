@@ -4,6 +4,7 @@ import fastavro
 from google.cloud import storage
 import gzip
 import json
+import os
 import urllib
 
 
@@ -54,11 +55,9 @@ def avro_to_rawls(request):
             "startTime": start_time,
         }
         metadata_json_str = json.dumps(metadata)
-        metadat_file_name = job_id + "/metadata.json"
         upsert_json_str = json.dumps(translation)
-        upsert_file_name = job_id + "/upsert.json"
-        write_to_bucket(metadat_file_name, metadata_json_str)
-        write_to_bucket(upsert_file_name, upsert_json_str)
+        write_metadata_to_bucket(job_id, metadata_json_str)
+        write_upsert_to_bucket(job_id, upsert_json_str)
     except Exception as e:
         return handle_exception(job_id, "The following exception occurred: " + str(e))
 
@@ -73,8 +72,9 @@ def handle_exception(subdirectory_name, message):
 
 def write_upsert_to_bucket(job_id, content_string):
     compressed_value = gzip.compress(bytes(content_string, 'utf-8'))
+
     file_name = job_id + "/upsert.json"
-    write_to_bucket(file_name, compressed_value)
+    write_to_bucket(file_name, compressed_value, True)
 
 
 def write_metadata_to_bucket(job_id, content_string):
@@ -88,11 +88,16 @@ def write_running_to_bucket(job_id, start_time):
     write_to_bucket(file_name, contents)
 
 
-def write_to_bucket(file_name, content):
+def write_to_bucket(file_name, content, compressed=False):
     storage_client = storage.Client()
-    bucket = storage_client.get_bucket("avro-translated-json")
+    env = str(os.environ['ENV'])
+    bucket_name = "avro-translated-json-" + env
+    bucket = storage_client.get_bucket(bucket_name)
     blob = bucket.blob(file_name)
-    blob.upload_from_string(content)
+    if compressed:
+        blob.upload_from_string(content,content_type="application/gzip")
+    else:
+        blob.upload_from_string(content, content_type="application/json")
 
 
 class Translator:
