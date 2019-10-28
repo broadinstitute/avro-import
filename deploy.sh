@@ -57,6 +57,13 @@ gsutil lifecycle set $LIFECYCLE_RULE_FILE $BUCKET_NAME
 gcloud pubsub topics create $TOPIC_NAME --project $PROJECT
 
 
+# Add rawls service account to the pubsub topic
+gcloud beta pubsub topics add-iam-policy-binding $TOPIC_NAME \
+--member serviceAccount:$RAWLS_SERVICE_ACCOUNT \
+--role "roles/pubsub.editor" \
+--project $PROJECT
+
+
 # Create notification on the pubsub topic
 gsutil notification create -f json -e OBJECT_FINALIZE -t $TOPIC_NAME $BUCKET_NAME
 
