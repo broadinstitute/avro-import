@@ -69,5 +69,5 @@ gcloud beta pubsub topics add-iam-policy-binding $TOPIC_NAME \
 
 
 # Create notification on the pubsub topic
-gsutil notification create -f json -e OBJECT_FINALIZE -t $TOPIC_NAME $BUCKET_NAME
+gsutil notification create -f json -e OBJECT_FINALIZE -t projects/$PROJECT/topics/$TOPIC_NAME $BUCKET_NAME
 
