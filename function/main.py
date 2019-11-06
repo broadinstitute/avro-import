@@ -41,7 +41,7 @@ def avro_to_rawls(request):
     try:
         avro = urllib.request.urlopen(url)
     except urllib.error.URLError as ue:
-        return handle_exception(job_id, start_time, "URL Error - the url " + url + " is not valid.")
+        return handle_exception(job_id, "URL Error - the url " + url + " is not valid.")
 
     try:
         reader = fastavro.reader(avro)
