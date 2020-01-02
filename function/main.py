@@ -1,11 +1,12 @@
 import base64
 from datetime import datetime
-import fastavro
 from google.cloud import storage
 import gzip
 import json
 import os
 import urllib
+import itertools
+from pfb.reader import PFBReader
 
 
 def avro_to_rawls(request):
@@ -34,7 +35,7 @@ def avro_to_rawls(request):
     except KeyError as ke:
         return handle_exception(job_id, "Key Error: " + str(ke) + " in request " + str(request.json))
 
-    defaults = {'b64-decode-enums': True, 'prefix-object-ids': True}
+    defaults = {'prefix-object-ids': True}
     request_options = request_json.get('options', {})
     options = {**defaults, **request_options}
 
@@ -44,8 +45,7 @@ def avro_to_rawls(request):
         return handle_exception(job_id, "URL Error - the url " + url + " is not valid.")
 
     try:
-        reader = fastavro.reader(avro)
-        translation = Translator(options).translate(reader)
+        translation = Translator(options).translate(avro)
         metadata = {
             "namespace": workspace_namespace,
             "name": workspace_name,
@@ -107,14 +107,13 @@ class Translator:
         defaults = {'b64-decode-enums': False, 'prefix-object-ids': False}
         self.options = {**defaults, **options}
 
-    def translate(self, reader):
-        if reader is None:
-            return None
-
-        enums = _list_enums(reader.writer_schema)
-        results = [self._translate_record(record, enums)
-                   for record in reader if record['name'] != 'Metadata']
-        return results
+    def translate(self, file_path):
+        with PFBReader(file_path) as reader:
+            schema = reader.schema
+            enums = _list_enums(schema)
+            results = [self._translate_record(record, enums)
+                       for record in itertools.islice(reader, None) if record['name'] != 'Metadata']
+            return results
 
     def _translate_record(self, record, enums):
         entity_type = record['name']
@@ -147,10 +146,8 @@ def _b64_decode(encoded_value):
 
 
 def _list_enums(schema):
-    object_field = next(f for f in schema['fields'] if f['name'] == 'object')
-    types = [t for t in object_field['type'] if t['name'] != 'Metadata']
     enums = {(entity_type['name'], field['name'])
-             for entity_type in types
+             for entity_type in schema
              for field in entity_type['fields']
              for enum in field['type'] if isinstance(enum, dict) and enum['type'] == 'enum'}
     return enums
