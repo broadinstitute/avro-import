@@ -35,7 +35,7 @@ def avro_to_rawls(request):
     except KeyError as ke:
         return handle_exception(job_id, "Key Error: " + str(ke) + " in request " + str(request.json))
 
-    defaults = {'b64-decode-enums': True, 'prefix-object-ids': True}
+    defaults = {'prefix-object-ids': True}
     request_options = request_json.get('options', {})
     options = {**defaults, **request_options}
 

@@ -69,5 +69,6 @@ gcloud beta pubsub topics add-iam-policy-binding $TOPIC_NAME \
 
 
 # Create notification on the pubsub topic
-gsutil notification create -f json -e OBJECT_FINALIZE -t projects/$PROJECT/topics/$TOPIC_NAME $BUCKET_NAME
+# Commenting out because this line should only be run once, upon the creation of a environment (in a new google project)
+#gsutil notification create -f json -e OBJECT_FINALIZE -t projects/$PROJECT/topics/$TOPIC_NAME $BUCKET_NAME
 
